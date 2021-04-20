@@ -1,0 +1,567 @@
+<!--
+         Licensed to the Apache Software Foundation (ASF) under one
+         or more contributor license agreements.  See the NOTICE file
+         distributed with this work for additional information
+         regarding copyright ownership.  The ASF licenses this file
+         to you under the Apache License, Version 2.0 (the
+         "License"); you may not use this file except in compliance
+         with the License.  You may obtain a copy of the License at
+
+           http://www.apache.org/licenses/LICENSE-2.0
+
+         Unless required by applicable law or agreed to in writing,
+         software distributed under the License is distributed on an
+         "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+         KIND, either express or implied.  See the License for the
+         specific language governing permissions and limitations
+         under the License.
+-->
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <meta name="viewport" content="width=320; user-scalable=no" />
+    <meta http-equiv="Content-type" content="text/html; charset=utf-8">
+    <title>TicketHub</title>
+    
+    <link rel="stylesheet" href="https://d10ajoocuyu32n.cloudfront.net/mobile/1.3.1/jquery.mobile-1.3.1.min.css">
+  
+
+  <!-- jQuery and jQuery Mobile -->
+  <script src="https://d10ajoocuyu32n.cloudfront.net/jquery-1.9.1.min.js"></script>
+  <script src="https://d10ajoocuyu32n.cloudfront.net/mobile/1.3.1/jquery.mobile-1.3.1.min.js"></script>
+
+  
+  <script src="http://raw.github.com/apigee/usergrid-javascript-sdk/master/usergrid.min.js"></script>
+
+<script type="text/javascript">
+	var apigee = new Usergrid.Client({
+		orgName : 'ziyang',
+		appName : 'sandbox'
+	});
+
+	// A Collection object that will be used to hold the list of books locally
+	var users = new Usergrid.Collection({
+		"client" : apigee,
+		"type" : "emails"
+	});
+	var tickets = new Usergrid.Collection({
+		"client" : apigee,
+		"type" : "tickets"
+	});
+	var comments = new Usergrid.Collection({
+		"client" : apigee,
+		"type" : "comments"
+	});
+
+	var current_user;
+	var email;
+	var user;
+	var password;
+
+	$(document).ready(function() {
+		$('#login-button').bind('click', checkUser);
+		$('#comment-button').bind('click', createComment);
+		$('#refresh').bind('click', showAll);
+		$('#tickets').bind('click', loadTicketsOnly);
+		$('#comments').bind('click', loadCommentsOnly);
+		$('#add-ticket-button').bind('click', createTicket);
+
+	});
+	
+	function createLogout() {
+		user="";
+		location.reload();
+	}
+    function checkUser () {
+
+        users.fetch( // Actual network call
+
+            // Success Callback
+            function () {
+                var emailenter=$("#user-field").val();
+                var passenter=$("#password-field").val();
+                var found = 0;
+                if( emailenter != "" && passenter != "" 
+                		&& passenter != null && emailenter != null) 
+                {
+                	while ( users.hasNextEntity() ) {
+                        current_user = users.getNextEntity();
+
+                        email = current_user.get('email');
+                        password = current_user.get('password');
+                        
+                        if(email == emailenter && password == passenter ){
+                        	//document.write("Bingo");
+                        	user= current_user.get('name');
+                        	email= current_user.get('email');
+                        	found = 1;
+                        	$('#login').empty().append('<div class="ui-btn-right">Hi, '+user.substring(0,4)+'</div>');
+                    		$('#login').bind('click', createLogout);
+                    		$('#add-comment-useremail').val(email);
+                    		$('#add-comment-useremail').prop('disabled', true);
+                    		$('#add-ticket-useremail').val(email);
+                    		$('#add-ticket-useremail').prop('disabled',true);
+                        	history.back();
+                        	showAll();
+                        	
+                        }    
+                    }
+                }
+                else if(found == 0){
+                	$('#event-list').empty();
+                	$('#event-list').append(
+					'<li><h3>error — could not log user in</h3></li>');
+        			// Re-apply jQuery Mobile styles
+        			$('#event-list').listview('refresh');
+                	history.back();
+                }
+            },
+            // Failure Callback
+            function () { alert("read failed"); }
+        );
+    }
+
+	function createUser() {
+		var newname = $("#name-signup").val();
+		var newemail = $("#user-signup").val();
+		var newpass = $("#password-signup").val();
+		if (newname != null && newpass != null && newemail != null
+				&& newname != "" && newpass != "" && newemail != "")
+		{
+			new_user = {
+				"name" : newname,
+				"password" : newpass,
+				"email" : newemail
+			};
+			users.addEntity(new_user, function(error, response) {
+				if (error) {
+					alert('write failed');
+				} else {
+					location.href="#page1";
+				}
+			});
+		} else {
+			history.back();
+		}
+	}
+
+	function loadTicketsOnly() {
+		$('#event-list').empty();
+		loadTickets();
+	}
+	function loadTickets() {
+		tickets.fetch( // Actual network call
+		// Success Callback
+		function() {
+			var i = 0;
+			last = tickets.getLastEntity();
+			// Output the book on the page
+			$('#event-list').append(
+					'<li id="t'+i+'"><h3>' + last.get('name') + ' ' + last.get('type')+ '</h3>' 
+					+ '<p>Expire Date: '+ last.get('expdate') + '</p>' 
+					+ '<p>URL: '+ last.get('url') + '</p>' 
+					+ '<p>Post By: '+ last.get('useremail') + '</p>' 
+					+ '<p>On: '+ (new Date(last.get('created'))).toString()
+					+ '</p></li>');
+
+			while (tickets.hasNextEntity()) {
+				var current = tickets.getNextEntity();
+				i++;
+				if (current != last)
+					// Output the book on the page
+					$('#event-list').append(
+							'<li id="t'+i+'"><h3>'+ current.get('name')+ ' '+ current.get('type')+ '</h3>'
+							+ '<p>Expire Date: '+ current.get('expdate')+ '</p>'
+							+ '<p>URL: '+ current.get('url')+ '</p>'
+							+ '<p>Post By: '+ current.get('useremail')+ '</p>'
+							+ '<p>On: '+ (new Date(current.get('created'))).toString() 
+							+ '</p></li>');
+			}
+			// Re-apply jQuery Mobile styles
+			$('#event-list').listview('refresh');
+		},
+
+		// Failure Callback
+		function() {
+			alert("read failed");
+		});
+	}
+
+	function loadCommentsOnly() {
+		$('#event-list').empty();
+		loadComments();
+
+	}
+	function loadComments() {
+
+		comments.fetch( // Actual network call
+
+		// Success Callback
+		function() {
+			var j = 0;
+			last = comments.getLastEntity();
+			// Output the book on the page
+			$('#event-list').append(
+					'<li id="c'+j+'"><h3>' + last.get('name') + '</h3>' 
+					+ '<p>Address: '+ last.get('address') + '</p>' 
+					+ '<p><b>Comment: '+ last.get('comment') + '</b></p>' 
+					+ '<p>Post By: '+ last.get('useremail') + '</p>' 
+					+ '<p>On: '+ (new Date(last.get('created'))).toString()
+					+ '</p></li>');
+
+			while (comments.hasNextEntity()) {
+				var current = comments.getNextEntity();
+				j++;
+
+				if (current != last)
+					// Output the book on the page
+					$('#event-list').append(
+							'<li id="c'+j+'"><h3>'+ current.get('name')+ '</h3>'
+							+ '<p>Address: '+ current.get('address')+ '</p>'
+							+ '<p><b>Comment: '+ current.get('comment')+ '</b></p>'
+							+ '<p>Post By: '+ current.get('useremail')+ '</p>'
+							+ '<p>On: '+ (new Date(current.get('created'))).toString() 
+							+ '</p></li>');
+			}
+			// Re-apply jQuery Mobile styles
+			$('#event-list').listview('refresh');
+		},
+
+		// Failure Callback
+		function() {
+			alert("read failed");
+		});
+	}
+
+	function showAll() {
+		if( $("#add-ticket-useremail").val() != "" && $("#add-ticket-useremail").val() !=null
+		   && $("#add-comment-useremail").val() != "" && $("#add-comment-useremail").val() != null )
+		{ 
+			$('#event-list').empty();
+			loadTickets();
+			loadComments();
+			listcomment();
+			listticket();
+		}
+	}
+	
+	function createComment() {
+		var cname = $("#add-comment-name").val();
+		var caddress = $("#add-comment-address").val();
+		var comment = $("#comment-field").val();
+		var cuseremail = $("#add-comment-useremail").val();
+		if (cname != null && caddress != null && comment != null && cuseremail != null
+				&& cname != "" && caddress != "" && comment != "" && cuseremail != "")
+		{
+			new_comment = {
+				"name" : cname,
+				"address" : caddress,
+				"comment" : comment,
+				"useremail" : cuseremail
+			};
+			comments.addEntity(new_comment, function(error, response) {
+				if (error) {
+					alert('write failed');
+				} else {
+					loadCommentsOnly();
+					history.back();
+				}
+			});
+		} else {
+			history.back();
+		}
+	}
+	function deleteComment() {
+		var uuid = $('#comment-list option:selected').val();
+		var cname = $('#comment-list option:selected').text();
+
+		if (uuid != 0) {
+			comments.fetch( // Actual network call
+					// Success Callback
+					function() {
+						while (comments.hasNextEntity()) {
+							var current = comments.getNextEntity();
+							if (current.get('uuid') == uuid 
+							    && current.get('name') == cname) 
+							{
+								comments.destroyEntity(current, function(error, response) {
+									if (error) {
+										alert('write failed');
+									} else {
+										loadCommentsOnly();
+										history.back();
+									}
+								});
+							}
+						}
+					},
+					// Failure Callback
+					function() {
+						alert("read failed");
+					});
+		} else
+			history.back();
+	}
+
+	function listcomment() {
+        comments.fetch( // Actual network call
+    			// Success Callback
+    			function() {
+    				$('#comment-list').empty().append(
+    			              '<option value="0">Select to Remove</option>');
+    				while (comments.hasNextEntity()) {
+    					var current = comments.getNextEntity();
+    						// Output the book on the page
+    						$('#comment-list').append(
+    								'<option value="'+current.get('uuid')+'">'+current.get('name')+'</option>');
+    				}
+    				// Re-apply jQuery Mobile styles
+    				$('#comment-list').listview('refresh');
+    			},
+    			// Failure Callback
+    			function() {
+    				alert("read failed");
+    			});
+	}
+	function listticket() {
+        tickets.fetch( // Actual network call
+    			// Success Callback
+    			function() {
+    				$('#ticket-list').empty().append(
+		              '<option value="0">Select to Remove</option>');
+    				while (tickets.hasNextEntity()) {
+    					var current = tickets.getNextEntity();
+    						// Output the book on the page
+    						$('#ticket-list').append(
+    								'<option value="'+current.get('uuid')+'">'+current.get('name')+'</option>');
+    				}
+    				// Re-apply jQuery Mobile styles
+    				$('#ticket-list').listview('refresh');
+    			},
+    			// Failure Callback
+    			function() {
+    				alert("read failed");
+    			});
+	}
+	
+	function createTicket() {
+		var name = $("#add-ticket-name").val();
+		var expdate = $("#add-ticket-expdate").val();
+		var url = $("#add-ticket-url").val();
+		var useremail = $("#add-ticket-useremail").val();
+		if (name != null && expdate != null && url != null && useremail != null
+				&& name != "" && expdate != "" && url != "" && useremail != "") {
+			new_ticket = {
+				"name" : name,
+				"expdate" : expdate,
+				"url" : url,
+				"useremail" : useremail
+			};
+			tickets.addEntity(new_ticket, function(error, response) {
+				if (error) {
+					alert('write failed');
+				} else {
+					loadTicketsOnly();
+					history.back();
+				}
+			});
+		} else {
+			history.back();
+		}
+	}
+	function deleteTicket() {
+		var uuid = $('#ticket-list option:selected').val();
+		var tname = $('#ticket-list option:selected').text();
+
+		if (uuid != 0) {
+			tickets.fetch( // Actual network call
+					// Success Callback
+					function() {
+						while (tickets.hasNextEntity()) {
+							var current = tickets.getNextEntity();
+							if (current.get('uuid') == uuid 
+							    && current.get('name') == tname) 
+							{
+								tickets.destroyEntity(current, function(error, response) {
+									if (error) {
+										alert('write failed');
+									} else {
+										loadTicketsOnly();
+										history.back();
+									}
+								});
+							}
+						}
+					},
+					// Failure Callback
+					function() {
+						alert("read failed");
+					});
+		} else
+			history.back();
+	}
+	
+</script>
+</head>
+<body bgcolor="#000000">
+  <!-- Home -->
+  <div data-role="page" id="page1">
+      <div data-theme="b" data-role="header">
+			<a href="#page-login" id="login" data-iconpos="right"
+				data-inline="true" data-role="button" data-rel="dialog"
+				data-transition="fade" class="ui-btn-right">Login</a>
+
+			<h3 id="header">
+              TicketHub
+          </h3>
+			<a id="refresh" data-role="button" href="#page1" class="ui-btn-left">
+				Refresh </a>
+		</div>
+      
+      <div data-role="content">
+          <ul id="event-list" data-role="listview" data-divider-theme="b" data-inset="true">
+              <li data-theme="c">
+                  <a href="#page-login" data-transition="slide">
+                  	 Welcome to TicketHub, <br>
+                  	 Please login, <br>
+                      Your Recommends/Tickets <br>
+                      will be shown here!
+                  </a>
+              </li>
+          </ul>
+      </div>
+      <div data-theme="b" data-role="footer" data-position="fixed">
+          <div class="ui-grid-a">
+              <div class="ui-block-a">
+                  <a id="comments" data-role="button" data-theme="b" href="#page1" data-icon="bars" data-iconpos="left">
+                      Recommends
+                  </a>
+                  <a id="addcomment" data-role="button" data-theme="b" href="#page-comment" data-rel="dialog" data-icon="plus" data-iconpos="left">
+                      (+)Comment
+                  </a>
+                  <a id="deletecomment" data-role="button" data-theme="b" href="#page-deletecomment" data-rel="dialog" data-icon="minus" data-iconpos="left">
+                      (-)Comment
+                  </a>
+              </div>
+              <div class="ui-block-b">
+                  <a id="tickets" data-role="button" data-theme="b" href="#page1" data-icon="bars" data-iconpos="left">
+                      Tickets
+                  </a>
+                  <a id="addticket" data-role="button" data-theme="b" href="#page-addticket" data-rel="dialog" data-icon="plus" data-iconpos="left">
+                      (+)Ticket
+                  </a>
+                  <a id="deleteticket" data-role="button" data-theme="b" href="#page-deleteticket" data-rel="dialog" data-icon="minus" data-iconpos="left">
+                      (-)Ticket
+                  </a>
+              </div>
+          </div>
+      </div>
+  </div>
+  
+ <div data-role="page" data-theme="b" id="page-login">
+            <div data-role="header" data-theme="b">
+                <h1>Login</h1>
+            </div>
+            <div data-role="content">
+                <form>
+                    <label for="user-login">Login Email</label>
+                    <input type="text" id="user-field"></input>
+                    <label for="password-login">Password</label>
+                    <input id="password-field" type="password"></input>
+                </form>    
+                <a href="#page1" data-role="button" data-theme="b" data-inline="true">Cancel</a>
+                <button id="login-button" data-inline="true">Login</button>
+            <a href="#page-signup" data-role="button" data-theme="b" data-inline="true" >Need to Signup</a>
+            </div>
+    </div>
+    
+     <div data-role="page" data-theme="b" id="page-signup">
+            <div data-role="header" data-theme="b">
+                <h1>Signup</h1>
+            </div>
+            <div data-role="content">
+                <form>
+                	<label for="name-signup">Name</label>
+                	<input type="text" id="name-signup"></input>
+                    <label for="user-signup">Login Email</label>
+                    <input type="text" id="user-signup"></input>
+                    <label for="password-signup">Password</label>
+                    <input id="password-signup" type="password"></input>
+                </form>    
+                <a href="#page1" data-role="button" data-theme="b" data-inline="true">Cancel</a>
+                <button id="signup-button" data-inline="true" onClick="createUser()">Signup</button>
+            </div>
+    </div>
+    
+<div data-role="page" data-theme="b" id="page-comment">
+            <div data-role="header" data-theme="b">
+                <h1>Add Recommend</h1>
+            </div>
+            <div data-role="content">
+                <form>
+                    <label for="create-comment"></label>                    
+                    <input id="add-comment-name" placeholder="Club,Pub,Resturant Name:" required></input>
+                    <input id="add-comment-address" placeholder="Address:" required></input>
+                    <input id="add-comment-useremail" placeholder="Your Email:" required></input>
+                	<textarea id="comment-field" placeholder="Comment:" required></textarea>
+                </form>    
+                <a href="#page1" data-role="button" data-theme="b" data-inline="true">Cancel</a>
+                <button id="comment-button" data-inline="true" data-icon="plus" data-iconpos="left">(+)Recommend</button>
+            </div>
+    </div>
+    
+     <div data-role="page" data-theme="b" id="page-deletecomment">
+            <div data-role="header" data-theme="b">
+                <h1>(-) Recommend</h1>
+            </div>
+            <div data-role="content">
+          <div id="remove-comment" data-role="fieldcontain">
+              <select id="comment-list">
+                  <script>
+                 // listcomment();
+                  </script>
+              </select>
+          </div>  
+                <a href="#page1" data-role="button" data-theme="b" data-inline="true">Cancel</a>
+                <button id="delete-comment-button" data-inline="true" data-icon="minus"
+                  data-iconpos="left" onCLick="deleteComment()">(-)Recommend</button>
+            </div>
+    </div>
+      
+     <div data-role="page" data-theme="b" id="page-addticket">
+            <div data-role="header" data-theme="b">
+                <h1>Add Ticket</h1>
+            </div>
+            <div data-role="content">
+                <form>
+                    <label for="create-addticket"></label>
+                    <input id="add-ticket-name" placeholder="Ticket Title:" required></input>
+                    <input id="add-ticket-expdate" placeholder="Expire Date:" required></input>
+                    <input id="add-ticket-url" placeholder="URL:" required></input>
+                    <input id="add-ticket-useremail" placeholder="Your Email:" required></input>
+                </form>    
+                <a href="#page1" data-role="button" data-theme="b" data-inline="true">Cancel</a>
+                <button id="add-ticket-button" data-inline="true" data-icon="plus"
+                  data-iconpos="left">(+)Ticket</button>
+            </div>
+    </div>
+     <div data-role="page" data-theme="b" id="page-deleteticket">
+            <div data-role="header" data-theme="b">
+                <h1>Remove Ticket</h1>
+            </div>
+            <div data-role="content">
+             <div id="remove-ticket" data-role="fieldcontain">
+              <select id="ticket-list">
+                  <script>
+                  //listticket();
+                  </script>
+              </select>
+          </div>    
+                <a href="#page1" data-role="button" data-theme="b" data-inline="true">Cancel</a>
+                <button id="delete-ticket-button" data-inline="true" data-icon="minus"
+                  data-iconpos="left" onCLick="deleteTicket()">(-)Ticket</button>
+            </div>
+    </div>
+      
+</body>
+</html>
